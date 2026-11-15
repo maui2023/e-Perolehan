@@ -11,6 +11,7 @@ use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
+use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
@@ -30,6 +31,17 @@ class VendorPanelProvider extends PanelProvider
             ->login()
             ->registration()
             ->brandName(fn () => OrganizationSetting::current()->org_name.' - Portal Pembekal')
+            ->brandLogo(fn () => view('filament.brand', [
+                'title' => OrganizationSetting::current()->org_short_name ?? 'e-Perolehan Universal',
+                'subtitle' => 'Portal Pembekal & Vendor',
+            ]))
+            ->brandLogoHeight('2.75rem')
+            ->renderHook(
+                PanelsRenderHook::SIMPLE_PAGE_START,
+                fn () => view('filament.login-header-logo', [
+                    'role' => 'Portal Pembekal & Kontraktor',
+                ]),
+            )
             ->colors([
                 'primary' => Color::hex('#1e3a8a'),
             ])
