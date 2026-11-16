@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Bid;
+use App\Models\BidDocument;
 use App\Models\Tender;
 use App\Models\TenderDocument;
 use App\Services\PdfReportService;
@@ -97,8 +98,8 @@ class BidController extends Controller
         $user = Auth::user();
         $tender = $document->tender;
 
-        // If public notice, allow anyone
-        if ($document->is_public_notice) {
+        // If public document, allow anyone
+        if ($document->is_public) {
             $disk = Storage::disk($document->disk ?? 'private');
             if ($disk->exists($document->file_path)) {
                 return response()->streamDownload(function () use ($disk, $document) {
@@ -131,5 +132,47 @@ class BidController extends Controller
         return response()->streamDownload(function () use ($disk, $document) {
             echo $disk->get($document->file_path);
         }, $document->file_name, ['Content-Type' => $document->mime_type ?? 'application/octet-stream']);
+    }
+
+    /**
+     * Muat Turun Dokumen Cadangan Bidaan (Teknikal / Kewangan)
+     * Menguatkuasakan Kitaran Bidaan Tertutup & Penilaian Dwi-Buta.
+     */
+    public function downloadBidDocument(BidDocument $document)
+    {
+        $user = Auth::user();
+        if (! $user) {
+            abort(403, 'Sila log masuk untuk mengakses dokumen bidaan.');
+        }
+
+        $bid = $document->bid;
+        $tender = $bid->tender;
+
+        // Vendor pemilik bidaan boleh memuat turun dokumen sendiri
+        $isOwner = $user->vendor && $user->vendor->id === $bid->vendor_id;
+
+        // Penilai dan Pentadbir hanya boleh akses SELEPAS peti tender dibuka rasmi
+        $isBoxOpened = $tender->isBoxOpened();
+
+        // Penilai Teknikal HANYA boleh memuat turun dokumen bukan kewangan
+        $isPenilaiTeknikal = $user->isPenilaiTeknikal();
+        $canPenilaiTeknikal = $isPenilaiTeknikal && $isBoxOpened && ! $document->is_financial;
+
+        // Penilai Kewangan dan Urus Setia/Admin boleh memuat turun setelah peti dibuka
+        $isFinancialOrAdmin = $user->isPenilaiKewangan() || $user->isAdmin() || $user->isUrusSetia();
+        $canFinancialOrAdmin = $isFinancialOrAdmin && $isBoxOpened;
+
+        if (! $isOwner && ! $canPenilaiTeknikal && ! $canFinancialOrAdmin) {
+            abort(403, 'Akses dinafikan. Dokumen bidaan bertutup dilindungi oleh penyulitan kriptografi sehingga peti dibuka.');
+        }
+
+        $disk = Storage::disk($document->disk ?? 'private');
+        if (! $disk->exists($document->file_path)) {
+            abort(404, 'Fail dokumen bidaan tidak ditemui di storan.');
+        }
+
+        return response()->streamDownload(function () use ($disk, $document) {
+            echo $disk->get($document->file_path);
+        }, $document->file_name, ['Content-Type' => $document->mime_type ?? 'application/pdf']);
     }
 }

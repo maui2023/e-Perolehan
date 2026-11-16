@@ -4,10 +4,30 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Cache;
 
 class OrganizationSetting extends Model
 {
     use HasFactory;
+
+    protected static ?self $currentInstance = null;
+
+    protected static function booted(): void
+    {
+        static::saved(function () {
+            static::clearCurrentCache();
+        });
+
+        static::deleted(function () {
+            static::clearCurrentCache();
+        });
+    }
+
+    public static function clearCurrentCache(): void
+    {
+        static::$currentInstance = null;
+        Cache::forget('organization_setting_current');
+    }
 
     protected $fillable = [
         'org_name',
@@ -54,7 +74,26 @@ class OrganizationSetting extends Model
 
     public static function current(): self
     {
-        return static::firstOrCreate([], [
+        if (static::$currentInstance !== null) {
+            return static::$currentInstance;
+        }
+
+        $cached = Cache::get('organization_setting_current');
+
+        if ($cached instanceof \__PHP_Incomplete_Class || (! $cached instanceof self && ! is_array($cached))) {
+            Cache::forget('organization_setting_current');
+            $cached = null;
+        }
+
+        if ($cached instanceof self) {
+            return static::$currentInstance = $cached;
+        }
+
+        if (is_array($cached)) {
+            return static::$currentInstance = (new static)->newFromBuilder($cached);
+        }
+
+        $setting = static::firstOrCreate([], [
             'org_name' => config('app.name', 'Universal Procurement Portal'),
             'org_short_name' => 'E-Perolehan',
             'org_reg_no' => 'ORG-2026-REG',
@@ -67,5 +106,9 @@ class OrganizationSetting extends Model
             'procurement_terms_text' => 'Semua pembida tertakluk kepada syarat-syarat am dan khusus perolehan yang ditetapkan oleh jawatankuasa perolehan organisasi.',
             'letterhead_footer_text' => 'Dokumen ini dijana secara digital oleh Sistem e-Perolehan Berintegriti Tinggi.',
         ]);
+
+        Cache::forever('organization_setting_current', $setting->getAttributes());
+
+        return static::$currentInstance = $setting;
     }
 }

@@ -256,7 +256,7 @@
                             </a>
 
                             <a 
-                                href="{{ route('tenders.public-show', $tender->slug) }}" 
+                                href="{{ route('tenders.purchase', $tender->id) }}" 
                                 class="px-3 py-2 text-center text-xs font-semibold text-white bg-navy-900 hover:bg-navy-800 rounded-lg shadow-sm transition-colors"
                             >
                                 Beli & Bida

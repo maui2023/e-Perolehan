@@ -3,7 +3,6 @@
 namespace App\Filament\Vendor\Resources\Tenders\Schemas;
 
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
@@ -15,54 +14,53 @@ class TenderForm
         return $schema
             ->components([
                 TextInput::make('reference_no')
-                    ->required(),
+                    ->label('Nombor Rujukan')
+                    ->disabled(),
                 TextInput::make('title')
-                    ->required(),
-                TextInput::make('slug')
-                    ->required(),
+                    ->label('Tajuk Perolehan')
+                    ->disabled(),
                 TextInput::make('category')
-                    ->required(),
+                    ->label('Kategori Perolehan')
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'supply' => 'Bekalan',
+                        'service' => 'Perkhidmatan',
+                        'work' => 'Kerja / Pembinaan',
+                        'consultancy' => 'Perkhidmatan Perunding',
+                        default => $state ?? '-',
+                    })
+                    ->disabled(),
                 TextInput::make('procurement_type')
-                    ->required()
-                    ->default('open'),
-                Textarea::make('description')
-                    ->columnSpanFull(),
-                Textarea::make('scope_of_work')
-                    ->columnSpanFull(),
-                Textarea::make('eligibility_criteria')
-                    ->columnSpanFull(),
-                TextInput::make('estimated_budget')
-                    ->numeric(),
+                    ->label('Kaedah Perolehan')
+                    ->formatStateUsing(fn (?string $state): string => match ($state) {
+                        'open' => 'Tender Terbuka',
+                        'limited' => 'Tender Terhad',
+                        'quotation' => 'Sebut Harga',
+                        default => $state ?? '-',
+                    })
+                    ->disabled(),
                 TextInput::make('document_price')
-                    ->required()
+                    ->label('Harga Dokumen Tender (RM)')
                     ->numeric()
-                    ->default(0)
-                    ->prefix('$'),
-                TextInput::make('tender_deposit_amount')
-                    ->required()
-                    ->numeric()
-                    ->default(0),
-                DateTimePicker::make('published_at'),
-                DateTimePicker::make('closing_at'),
-                TextInput::make('status')
-                    ->required()
-                    ->default('draft'),
-                TextInput::make('min_technical_score')
-                    ->required()
-                    ->numeric()
-                    ->default(70),
-                DateTimePicker::make('dual_witness_opened_at'),
-                Select::make('awarded_bid_id')
-                    ->relationship('awardedBid', 'id'),
-                DateTimePicker::make('awarded_at'),
-                Textarea::make('award_notes')
-                    ->columnSpanFull(),
-                TextInput::make('sst_letter_pdf_path'),
-                TextInput::make('opening_slip_pdf_path'),
-                TextInput::make('evaluation_report_pdf_path'),
-                DateTimePicker::make('archived_to_minio_at'),
-                TextInput::make('created_by_user_id')
-                    ->numeric(),
+                    ->prefix('RM')
+                    ->disabled(),
+                DateTimePicker::make('closing_at')
+                    ->label('Tarikh & Waktu Tutup Bidaan')
+                    ->disabled(),
+                Textarea::make('description')
+                    ->label('Keterangan Ringkas')
+                    ->rows(3)
+                    ->columnSpanFull()
+                    ->disabled(),
+                Textarea::make('scope_of_work')
+                    ->label('Skop Kerja & Spesifikasi Bekalan')
+                    ->rows(4)
+                    ->columnSpanFull()
+                    ->disabled(),
+                Textarea::make('eligibility_criteria')
+                    ->label('Syarat Kelayakan & Pematuhan (MOF / CIDB)')
+                    ->rows(3)
+                    ->columnSpanFull()
+                    ->disabled(),
             ]);
     }
 }

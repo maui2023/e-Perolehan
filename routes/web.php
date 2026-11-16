@@ -16,13 +16,27 @@ Route::get('/', [PublicPortalController::class, 'index'])->name('portal.home');
 Route::get('/tenders/{slug}', [PublicPortalController::class, 'show'])->name('tenders.public-show');
 Route::get('/tenders/{tender}/notice-pdf', [PublicPortalController::class, 'downloadNoticePdf'])->name('tenders.notice-pdf');
 Route::get('/verify/{type}/{ref}', [PublicPortalController::class, 'verifyDocument'])->name('verify.document');
+Route::get('/login', function () {
+    if (auth()->check()) {
+        $user = auth()->user();
+
+        return redirect()->to(match ($user?->role) {
+            'admin', 'urus_setia' => url('/admin'),
+            'vendor' => url('/vendor'),
+            'penilai_teknikal', 'penilai_kewangan', 'saksi_pembuka' => url('/penilai'),
+            default => url('/'),
+        });
+    }
+
+    return redirect()->to(url('/vendor/login'));
+})->name('login');
 
 /*
 |--------------------------------------------------------------------------
 | Gerbang Pembayaran AffanPay (maui2023/affanpay-laravel)
 |--------------------------------------------------------------------------
 */
-Route::post('/tenders/{tender}/purchase', [AffanPayController::class, 'purchase'])->name('tenders.purchase');
+Route::match(['get', 'post'], '/tenders/{tender}/purchase', [AffanPayController::class, 'purchase'])->name('tenders.purchase');
 Route::get('/affanpay/simulate/{reference}', [AffanPayController::class, 'simulate'])->name('affanpay.simulate');
 Route::post('/affanpay/simulate/{reference}', [AffanPayController::class, 'processSimulation'])->name('affanpay.simulate.post');
 Route::get('/affanpay/return/{reference}', [AffanPayController::class, 'returnCallback'])->name('affanpay.return');
@@ -38,6 +52,7 @@ Route::get('/purchases/{purchase}/receipt', [AffanPayController::class, 'downloa
 Route::post('/vendor/bids/{tender}/submit', [BidController::class, 'submit'])->name('vendor.bids.submit');
 Route::get('/vendor/bids/{bid}/slip', [BidController::class, 'downloadSlip'])->name('vendor.bids.slip');
 Route::get('/documents/{document}/download', [BidController::class, 'downloadTenderDocument'])->name('documents.download');
+Route::get('/bids/documents/{document}/download', [BidController::class, 'downloadBidDocument'])->name('bids.documents.download');
 
 /*
 |--------------------------------------------------------------------------

@@ -15,54 +15,84 @@ class TenderForm
         return $schema
             ->components([
                 TextInput::make('reference_no')
-                    ->required(),
+                    ->label('Nombor Rujukan')
+                    ->placeholder('Dijana automatik jika kosong (cth: TDR-2026-0001)')
+                    ->maxLength(50),
                 TextInput::make('title')
-                    ->required(),
-                TextInput::make('slug')
-                    ->required(),
-                TextInput::make('category')
-                    ->required(),
-                TextInput::make('procurement_type')
+                    ->label('Tajuk Perolehan')
                     ->required()
-                    ->default('open'),
+                    ->maxLength(255)
+                    ->columnSpanFull(),
+                Select::make('category')
+                    ->label('Kategori Perolehan')
+                    ->options([
+                        'supply' => 'Bekalan (Peralatan, ICT, Bahan)',
+                        'service' => 'Perkhidmatan (Penyelenggaraan, Kawalan, dll.)',
+                        'work' => 'Kerja / Pembinaan (Sivil, Elektrikal)',
+                        'consultancy' => 'Perkhidmatan Perunding',
+                    ])
+                    ->required(),
+                Select::make('procurement_type')
+                    ->label('Kaedah Perolehan')
+                    ->options([
+                        'open' => 'Tender Terbuka',
+                        'limited' => 'Tender Terhad / Khas',
+                        'quotation' => 'Sebut Harga',
+                    ])
+                    ->default('open')
+                    ->required(),
+                TextInput::make('estimated_budget')
+                    ->label('Anggaran Jabatan / Belanjawan (RM)')
+                    ->numeric()
+                    ->prefix('RM'),
+                TextInput::make('document_price')
+                    ->label('Harga Dokumen Tender (RM)')
+                    ->numeric()
+                    ->prefix('RM')
+                    ->default(0)
+                    ->required()
+                    ->helperText('Pembelian dikutip secara automatik melalui AffanPay.'),
+                TextInput::make('tender_deposit_amount')
+                    ->label('Wang Cagaran / Deposit (RM)')
+                    ->numeric()
+                    ->prefix('RM')
+                    ->default(0),
+                TextInput::make('min_technical_score')
+                    ->label('Ambang Markah Teknikal (%)')
+                    ->numeric()
+                    ->default(70)
+                    ->suffix('%')
+                    ->required(),
+                DateTimePicker::make('published_at')
+                    ->label('Tarikh & Waktu Iklan Dibuka')
+                    ->default(now()),
+                DateTimePicker::make('closing_at')
+                    ->label('Tarikh & Waktu Tutup Bidaan')
+                    ->required(),
+                Select::make('status')
+                    ->label('Status Tender')
+                    ->options([
+                        'draft' => 'Draf',
+                        'published' => 'Diiklankan / Dibuka',
+                        'closed' => 'Ditutup',
+                        'evaluating' => 'Dalam Penilaian',
+                        'awarded' => 'Dianugerahkan',
+                        'cancelled' => 'Dibatalkan',
+                    ])
+                    ->default('published')
+                    ->required(),
                 Textarea::make('description')
+                    ->label('Keterangan Ringkas')
+                    ->rows(3)
                     ->columnSpanFull(),
                 Textarea::make('scope_of_work')
+                    ->label('Skop Kerja & Spesifikasi Bekalan')
+                    ->rows(4)
                     ->columnSpanFull(),
                 Textarea::make('eligibility_criteria')
+                    ->label('Syarat Kelayakan & Pematuhan (MOF / CIDB)')
+                    ->rows(3)
                     ->columnSpanFull(),
-                TextInput::make('estimated_budget')
-                    ->numeric(),
-                TextInput::make('document_price')
-                    ->required()
-                    ->numeric()
-                    ->default(0)
-                    ->prefix('$'),
-                TextInput::make('tender_deposit_amount')
-                    ->required()
-                    ->numeric()
-                    ->default(0),
-                DateTimePicker::make('published_at'),
-                DateTimePicker::make('closing_at'),
-                TextInput::make('status')
-                    ->required()
-                    ->default('draft'),
-                TextInput::make('min_technical_score')
-                    ->required()
-                    ->numeric()
-                    ->default(70),
-                DateTimePicker::make('dual_witness_opened_at'),
-                Select::make('awarded_bid_id')
-                    ->relationship('awardedBid', 'id'),
-                DateTimePicker::make('awarded_at'),
-                Textarea::make('award_notes')
-                    ->columnSpanFull(),
-                TextInput::make('sst_letter_pdf_path'),
-                TextInput::make('opening_slip_pdf_path'),
-                TextInput::make('evaluation_report_pdf_path'),
-                DateTimePicker::make('archived_to_minio_at'),
-                TextInput::make('created_by_user_id')
-                    ->numeric(),
             ]);
     }
 }

@@ -23,7 +23,12 @@ class Vendor extends Model
         'state',
         'postcode',
         'mof_registration_number',
+        'mof_codes',
         'cidb_registration_number',
+        'cidb_grade',
+        'bank_name',
+        'bank_account_number',
+        'bank_account_holder',
         'bumiputera_status',
         'compliance_status',
         'compliance_verified_at',
@@ -67,11 +72,52 @@ class Vendor extends Model
         return $this->compliance_status === 'verified';
     }
 
+    /**
+     * Cache IDs of tenders purchased by this vendor in-memory per request lifecycle.
+     *
+     * @var array<int, int>|null
+     */
+    protected ?array $memoizedPurchasedTenderIds = null;
+
+    /**
+     * Cache bids keyed by tender_id in-memory per request lifecycle.
+     *
+     * @var array<int, Bid>|null
+     */
+    protected ?array $memoizedBidsByTenderId = null;
+
+    /**
+     * @return array<int, int>
+     */
+    public function getPurchasedTenderIds(): array
+    {
+        if ($this->memoizedPurchasedTenderIds === null) {
+            $this->memoizedPurchasedTenderIds = $this->purchases()
+                ->where('status', 'paid')
+                ->pluck('tender_id', 'tender_id')
+                ->all();
+        }
+
+        return $this->memoizedPurchasedTenderIds;
+    }
+
     public function hasPurchasedTender(int $tenderId): bool
     {
-        return $this->purchases()
-            ->where('tender_id', $tenderId)
-            ->where('status', 'paid')
-            ->exists();
+        return isset($this->getPurchasedTenderIds()[$tenderId]);
+    }
+
+    public function getBidForTender(int $tenderId): ?Bid
+    {
+        if ($this->memoizedBidsByTenderId === null) {
+            $this->memoizedBidsByTenderId = $this->bids()->get()->keyBy('tender_id')->all();
+        }
+
+        return $this->memoizedBidsByTenderId[$tenderId] ?? null;
+    }
+
+    public function clearMemoizedCaches(): void
+    {
+        $this->memoizedPurchasedTenderIds = null;
+        $this->memoizedBidsByTenderId = null;
     }
 }

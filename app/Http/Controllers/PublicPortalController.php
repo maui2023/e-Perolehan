@@ -10,6 +10,7 @@ use App\Models\TenderPurchase;
 use App\Models\Vendor;
 use App\Services\PdfReportService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Storage;
 
 class PublicPortalController extends Controller
@@ -37,13 +38,14 @@ class PublicPortalController extends Controller
             $query->where('category', $selectedCategory);
         }
 
-        // Search filter
+        // Search filter with wildcard escaping to prevent injection/broad scans
         if (filled($searchTerm)) {
-            $query->where(function ($q) use ($searchTerm) {
-                $q->where('title', 'like', "%{$searchTerm}%")
-                    ->orWhere('reference_no', 'like', "%{$searchTerm}%")
-                    ->orWhere('description', 'like', "%{$searchTerm}%")
-                    ->orWhere('eligibility_criteria', 'like', "%{$searchTerm}%");
+            $escapedTerm = addcslashes($searchTerm, '%_\\');
+            $query->where(function ($q) use ($escapedTerm) {
+                $q->where('title', 'like', "%{$escapedTerm}%")
+                    ->orWhere('reference_no', 'like', "%{$escapedTerm}%")
+                    ->orWhere('description', 'like', "%{$escapedTerm}%")
+                    ->orWhere('eligibility_criteria', 'like', "%{$escapedTerm}%");
             });
         }
 
@@ -52,24 +54,33 @@ class PublicPortalController extends Controller
             ->paginate(12)
             ->withQueryString();
 
-        // Counts for category tabs
+        // Consolidated category count query
+        $activeCategoryRaw = Tender::where('status', 'published')
+            ->where(fn ($q) => $q->whereNull('closing_at')->orWhere('closing_at', '>=', now()))
+            ->selectRaw('category, count(*) as count')
+            ->groupBy('category')
+            ->pluck('count', 'category')
+            ->all();
+
         $categoryCounts = [
-            'all' => Tender::where('status', 'published')->where(fn ($q) => $q->whereNull('closing_at')->orWhere('closing_at', '>=', now()))->count(),
-            'supply' => Tender::where('status', 'published')->where('category', 'supply')->where(fn ($q) => $q->whereNull('closing_at')->orWhere('closing_at', '>=', now()))->count(),
-            'service' => Tender::where('status', 'published')->where('category', 'service')->where(fn ($q) => $q->whereNull('closing_at')->orWhere('closing_at', '>=', now()))->count(),
-            'work' => Tender::where('status', 'published')->where('category', 'work')->where(fn ($q) => $q->whereNull('closing_at')->orWhere('closing_at', '>=', now()))->count(),
-            'consultancy' => Tender::where('status', 'published')->where('category', 'consultancy')->where(fn ($q) => $q->whereNull('closing_at')->orWhere('closing_at', '>=', now()))->count(),
+            'all' => array_sum($activeCategoryRaw),
+            'supply' => (int) ($activeCategoryRaw['supply'] ?? 0),
+            'service' => (int) ($activeCategoryRaw['service'] ?? 0),
+            'work' => (int) ($activeCategoryRaw['work'] ?? 0),
+            'consultancy' => (int) ($activeCategoryRaw['consultancy'] ?? 0),
         ];
 
-        // System-wide transparency statistics
-        $stats = [
-            'active_tenders' => $categoryCounts['all'],
-            'evaluated_bids' => Bid::whereNotNull('total_score')->count(),
-            'awarded_value' => (float) Tender::where('tenders.status', 'awarded')
-                ->join('bids', 'tenders.awarded_bid_id', '=', 'bids.id')
-                ->sum('bids.decrypted_bid_amount'),
-            'registered_vendors' => Vendor::where('compliance_status', 'verified')->count(),
-        ];
+        // System-wide transparency statistics cached for 60 seconds
+        $stats = Cache::remember('portal_transparency_stats', 60, function () use ($categoryCounts) {
+            return [
+                'active_tenders' => $categoryCounts['all'],
+                'evaluated_bids' => Bid::whereNotNull('total_score')->count(),
+                'awarded_value' => (float) Tender::where('tenders.status', 'awarded')
+                    ->join('bids', 'tenders.awarded_bid_id', '=', 'bids.id')
+                    ->sum('bids.decrypted_bid_amount'),
+                'registered_vendors' => Vendor::where('compliance_status', 'verified')->count(),
+            ];
+        });
 
         // Public Award Board (Recently Awarded Tenders)
         $awardedTenders = Tender::with(['awardedBid.vendor'])
@@ -85,7 +96,7 @@ class PublicPortalController extends Controller
     {
         $setting = OrganizationSetting::current();
 
-        $tender = Tender::with(['documents' => fn ($q) => $q->where('is_public_notice', true)])
+        $tender = Tender::with('documents')
             ->where('slug', $slug)
             ->orWhere('reference_no', $slug)
             ->firstOrFail();
@@ -215,7 +226,8 @@ class PublicPortalController extends Controller
                 break;
         }
 
-        $auditLog = AuditTrail::where('description', 'like', "%{$ref}%")
+        $escapedRef = addcslashes($ref, '%_\\');
+        $auditLog = AuditTrail::where('description', 'like', "%{$escapedRef}%")
             ->latest('id')
             ->first();
 

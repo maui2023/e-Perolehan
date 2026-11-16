@@ -5,6 +5,9 @@ namespace App\Filament\Resources\Tenders;
 use App\Filament\Resources\Tenders\Pages\CreateTender;
 use App\Filament\Resources\Tenders\Pages\EditTender;
 use App\Filament\Resources\Tenders\Pages\ListTenders;
+use App\Filament\Resources\Tenders\Pages\ViewTender;
+use App\Filament\Resources\Tenders\RelationManagers\AdminBidsRelationManager;
+use App\Filament\Resources\Tenders\RelationManagers\DocumentsRelationManager;
 use App\Filament\Resources\Tenders\Schemas\TenderForm;
 use App\Filament\Resources\Tenders\Tables\TendersTable;
 use App\Models\Tender;
@@ -33,7 +36,8 @@ class TenderResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            DocumentsRelationManager::class,
+            AdminBidsRelationManager::class,
         ];
     }
 
@@ -42,6 +46,7 @@ class TenderResource extends Resource
         return [
             'index' => ListTenders::route('/'),
             'create' => CreateTender::route('/create'),
+            'view' => ViewTender::route('/{record}'),
             'edit' => EditTender::route('/{record}/edit'),
         ];
     }

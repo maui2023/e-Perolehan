@@ -58,4 +58,14 @@ class TenderPurchase extends Model
     {
         return $this->status === 'paid';
     }
+
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    public function isFailed(): bool
+    {
+        return $this->status === 'failed';
+    }
 }

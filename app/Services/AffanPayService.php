@@ -133,8 +133,10 @@ class AffanPayService
     public function processWebhook(array $payload, ?string $signature = null): array
     {
         $expectedSecret = config('affanpay.webhook_secret');
-        if (! empty($expectedSecret) && ! empty($signature) && ! hash_equals($expectedSecret, $signature)) {
-            return ['status' => 'invalid_signature'];
+        if (! empty($expectedSecret)) {
+            if (empty($signature) || ! hash_equals($expectedSecret, $signature)) {
+                return ['status' => 'invalid_signature'];
+            }
         }
 
         $purchaseRef = $payload['external_ref'] ?? data_get($payload, 'data.external_ref');

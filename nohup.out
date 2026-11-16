@@ -1,0 +1,17 @@
+
+   INFO  Server running on [http://0.0.0.0:8001].  
+
+  Press Ctrl+C to stop the server
+
+  2026-11-15 23:28:08 ............................................ ~ 500.27ms
+  2026-11-15 23:28:09 /fonts/filament/filament/inter/index.css?v=5.11.2.0  ~ 0.06ms
+  2026-11-15 23:28:09 /js/filament/tables/tables.js?v=5.11.2.0 ..... ~ 0.11ms
+  2026-11-15 23:28:09 /js/filament/actions/actions.js?v=5.11.2.0 ... ~ 0.14ms
+  2026-11-15 23:28:09 /js/filament/filament/app.js?v=5.11.2.0 ...... ~ 0.01ms
+  2026-11-15 23:28:09 /js/filament/filament/echo.js?v=5.11.2.0 ..... ~ 0.21ms
+  2026-11-15 23:28:09 /css/filament/filament/app.css?v=5.11.2.0 .... ~ 0.28ms
+  2026-11-15 23:28:09 /js/filament/support/support.js?v=5.11.2.0 ... ~ 0.06ms
+  2026-11-15 23:28:09 /js/filament/schemas/schemas.js?v=5.11.2.0 ... ~ 0.01ms
+  2026-11-15 23:28:10 /js/filament/notifications/notifications.js?v=5.11.2.0  ~ 0.06ms
+  2026-11-15 23:28:11 ............................................ ~ 500.26ms
+  2026-11-15 23:28:14 /fonts/filament/filament/inter/inter-latin-wght-normal-DIHYUR35.woff2  ~ 0.06ms

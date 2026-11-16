@@ -105,8 +105,9 @@ class AffanPayPaymentTest extends TestCase
             'amount' => 100.00,
         ];
 
-        // 1st webhook call: processes and marks as paid
-        $response1 = $this->postJson(route('affanpay.webhook'), $payload);
+        // 1st webhook call: processes and marks as paid with valid webhook signature
+        $response1 = $this->withHeader('X-AffanPay-Signature', config('affanpay.webhook_secret'))
+            ->postJson(route('affanpay.webhook'), $payload);
         $response1->assertStatus(200);
         $response1->assertJsonPath('success', true);
         $response1->assertJsonPath('result.status', 'paid_processed');
@@ -123,7 +124,8 @@ class AffanPayPaymentTest extends TestCase
         );
 
         // 2nd webhook call (idempotency check): should return already_paid without re-processing
-        $response2 = $this->postJson(route('affanpay.webhook'), $payload);
+        $response2 = $this->withHeader('X-AffanPay-Signature', config('affanpay.webhook_secret'))
+            ->postJson(route('affanpay.webhook'), $payload);
         $response2->assertStatus(200);
         $response2->assertJsonPath('result.status', 'already_paid');
     }
@@ -142,5 +144,113 @@ class AffanPayPaymentTest extends TestCase
         $ownerResponse = $this->actingAs($ownerUser)->get(route('purchases.receipt', $purchase->id));
         $ownerResponse->assertStatus(200);
         $this->assertEquals('application/pdf', $ownerResponse->headers->get('content-type'));
+    }
+
+    public function test_free_tender_purchase_redirects_directly_to_create_bid_with_tender_id(): void
+    {
+        $vendorUser = User::where('role', 'vendor')->first();
+        $tender = Tender::where('status', 'published')->where('document_price', '<=', 0)->first();
+
+        if (! $tender) {
+            $tender = Tender::create([
+                'reference_no' => 'TDR-FREE-TEST',
+                'title' => 'Tender Percuma Ujian',
+                'category' => 'service',
+                'status' => 'published',
+                'document_price' => 0.00,
+                'closing_at' => now()->addDays(14),
+            ]);
+        }
+
+        $response = $this->actingAs($vendorUser)->get(route('tenders.purchase', $tender->id));
+
+        $expectedUrl = route('filament.vendor.resources.bids.create', ['tender_id' => $tender->id]);
+        $response->assertRedirect($expectedUrl);
+
+        $this->assertDatabaseHas('tender_purchases', [
+            'tender_id' => $tender->id,
+            'vendor_id' => $vendorUser->vendor->id,
+            'status' => 'paid',
+        ]);
+    }
+
+    public function test_already_purchased_tender_redirects_directly_to_create_bid_with_tender_id(): void
+    {
+        $vendorUser = User::where('role', 'vendor')->first();
+        $tender = Tender::where('status', 'published')->first();
+
+        TenderPurchase::updateOrCreate(
+            ['tender_id' => $tender->id, 'vendor_id' => $vendorUser->vendor->id],
+            [
+                'purchase_reference' => 'TEST-PURCHASE-ALREADY',
+                'amount' => $tender->document_price,
+                'status' => 'paid',
+                'paid_at' => now(),
+                'idempotency_key' => 'idemp-already-1',
+            ]
+        );
+
+        $response = $this->actingAs($vendorUser)->get(route('tenders.purchase', $tender->id));
+
+        $expectedUrl = route('filament.vendor.resources.bids.create', ['tender_id' => $tender->id]);
+        $response->assertRedirect($expectedUrl);
+    }
+
+    public function test_return_callback_after_payment_redirects_to_create_bid_with_tender_id(): void
+    {
+        $vendor = Vendor::first();
+        $tender = Tender::first();
+
+        $purchase = TenderPurchase::create([
+            'tender_id' => $tender->id,
+            'vendor_id' => $vendor->id,
+            'purchase_reference' => 'RETURN-TEST-REF',
+            'amount' => 50.00,
+            'status' => 'paid',
+            'paid_at' => now(),
+            'idempotency_key' => 'idemp-return-01',
+        ]);
+
+        $response = $this->actingAs($vendor->user)->get(route('affanpay.return', $purchase->purchase_reference));
+
+        $expectedUrl = route('filament.vendor.resources.bids.create', ['tender_id' => $purchase->tender_id]);
+        $response->assertRedirect($expectedUrl);
+    }
+
+    public function test_vendor_tender_view_action_points_to_purchase_route(): void
+    {
+        $vendorUser = User::where('role', 'vendor')->first();
+        $tender = Tender::where('status', 'published')->where('document_price', '>', 0)->first();
+
+        // Ensure not purchased yet
+        TenderPurchase::where('tender_id', $tender->id)
+            ->where('vendor_id', $vendorUser->vendor->id)
+            ->delete();
+
+        $response = $this->actingAs($vendorUser)->get(route('filament.vendor.resources.tenders.view', $tender->id));
+        $response->assertStatus(200);
+        $response->assertSee(route('tenders.purchase', $tender->id));
+    }
+
+    public function test_create_bid_page_loads_with_tender_id_query_param(): void
+    {
+        $vendorUser = User::where('role', 'vendor')->first();
+        $tender = Tender::where('status', 'published')->first();
+
+        // Ensure purchased
+        TenderPurchase::updateOrCreate(
+            ['tender_id' => $tender->id, 'vendor_id' => $vendorUser->vendor->id],
+            [
+                'purchase_reference' => 'TEST-PURCHASE-LOAD',
+                'amount' => $tender->document_price,
+                'status' => 'paid',
+                'paid_at' => now(),
+                'idempotency_key' => 'idemp-load-1',
+            ]
+        );
+
+        $response = $this->actingAs($vendorUser)->get(route('filament.vendor.resources.bids.create', ['tender_id' => $tender->id]));
+        $response->assertStatus(200);
+        $response->assertSee($tender->reference_no);
     }
 }

@@ -20,8 +20,8 @@ class WitnessController extends Controller
     {
         $user = Auth::user();
 
-        if (! $user) {
-            abort(403);
+        if (! $user || ! in_array($user->role, ['saksi_pembuka', 'admin', 'urus_setia'])) {
+            abort(403, 'Akses dinafikan. Anda tidak mempunyai peranan saksi pembuka peti tender.');
         }
 
         $validated = $request->validate([

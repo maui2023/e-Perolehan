@@ -1,0 +1,75 @@
+# Konfigurasi Nginx Pengeluaran untuk Laravel 13 + Filament 5 + Livewire
+# Simpan fail ini atau salin ke konfigurasi vhost pelayan (cth: /etc/nginx/sites-available/eperolehan atau aaPanel)
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name lpku.pats.my;
+
+    # Alihkan HTTP ke HTTPS (jika menggunakan SSL terus di Nginx)
+    # return 301 https://$host$request_uri;
+
+    # LALUAN ROOT MESTI MENGHALA KE FOLDER public/
+    root /home/maui/github/e-Perolehan/public;
+    index index.php index.html;
+
+    charset utf-8;
+
+    # Had saiz muat naik dokumen tender (cth: PDF bidaan teknikal & kewangan)
+    client_max_body_size 100M;
+
+    # Penampan FastCGI (PENTING untuk Filament & Livewire bagi mengelakkan ralat 'upstream sent too big header')
+    fastcgi_buffers 16 16k;
+    fastcgi_buffer_size 32k;
+
+    # Keselamatan Header Asas
+    add_header X-Frame-Options "SAMEORIGIN";
+    add_header X-Content-Type-Options "nosniff";
+
+    # Routing Utama Laravel
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    # Laluan panel Filament - halang 403/404 sekiranya direktori fizikal wujud
+    location ~ ^/(vendor|admin|penilai) {
+        try_files $uri /index.php?$query_string;
+    }
+
+    # Pengendalian Fail Statik (Aset Vite, Filament, Livewire)
+    # PENTING: Gunakan 'try_files $uri /index.php?$query_string' supaya laluan dinamik Livewire/Filament tidak 404
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        try_files $uri /index.php?$query_string;
+        expires 30d;
+        access_log off;
+        add_header Cache-Control "public, no-transform";
+    }
+
+    location = /favicon.ico { access_log off; log_not_found off; }
+    location = /robots.txt  { access_log off; log_not_found off; }
+
+    error_page 404 /index.php;
+
+    # Sambungan PHP-FPM
+    location ~ \.php$ {
+        # Laraskan soket PHP-FPM mengikut versi anda (cth: php8.5-fpm / php8.3-fpm atau 127.0.0.1:9000)
+        fastcgi_pass unix:/run/php/php8.5-fpm.sock;
+        # Alternatif aaPanel:
+        # fastcgi_pass unix:/tmp/php-cgi-83.sock;
+
+        fastcgi_index index.php;
+        fastcgi_param SCRIPT_FILENAME $realpath_root$fastcgi_script_name;
+        fastcgi_param PATH_INFO $fastcgi_path_info;
+        include fastcgi_params;
+
+        # PENTING untuk Reverse Proxy / Cloudflare / HTTPS agar CSRF & Session sah:
+        fastcgi_param HTTP_X_FORWARDED_PROTO $http_x_forwarded_proto if_not_empty;
+        fastcgi_param HTTP_X_FORWARDED_FOR $http_x_forwarded_for if_not_empty;
+        fastcgi_param HTTPS $https if_not_empty;
+    }
+
+    # Halang akses kepada fail tersembunyi seperti .env dan .git
+    location ~ /\.(?!well-known).* {
+        deny all;
+    }
+}

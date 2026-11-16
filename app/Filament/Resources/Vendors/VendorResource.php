@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\Vendors;
 
-use App\Filament\Resources\Vendors\Pages\CreateVendor;
 use App\Filament\Resources\Vendors\Pages\EditVendor;
 use App\Filament\Resources\Vendors\Pages\ListVendors;
 use App\Filament\Resources\Vendors\Schemas\VendorForm;
@@ -13,12 +12,29 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Model;
 
 class VendorResource extends Resource
 {
     protected static ?string $model = Vendor::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedBuildingOffice2;
+
+    protected static ?string $navigationLabel = 'Pematuhan Pembekal';
+
+    protected static ?string $modelLabel = 'Pembekal';
+
+    protected static ?string $pluralModelLabel = 'Pengurusan Pematuhan Pembekal';
+
+    public static function canCreate(): bool
+    {
+        return false;
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return false;
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -41,7 +57,6 @@ class VendorResource extends Resource
     {
         return [
             'index' => ListVendors::route('/'),
-            'create' => CreateVendor::route('/create'),
             'edit' => EditVendor::route('/{record}/edit'),
         ];
     }

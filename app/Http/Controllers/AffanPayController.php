@@ -7,6 +7,7 @@ use App\Models\Tender;
 use App\Models\TenderPurchase;
 use App\Services\AffanPayService;
 use App\Services\PdfReportService;
+use Filament\Notifications\Notification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Storage;
@@ -28,7 +29,7 @@ class AffanPayController extends Controller
 
         // Must be logged in as vendor
         if (! $user || $user->role !== 'vendor' || ! $user->vendor) {
-            session()->put('url.intended', route('tenders.public-show', $tender->slug));
+            session()->put('url.intended', route('tenders.purchase', $tender->id));
 
             return redirect('/vendor/login')->with('warning', 'Sila log masuk sebagai Pembekal/Vendor untuk membeli dokumen tender.');
         }
@@ -62,7 +63,14 @@ class AffanPayController extends Controller
 
             $this->pdfService->generatePurchaseReceiptPdf($purchase);
 
-            return redirect('/vendor')->with('success', 'Dokumen tender percuma telah berjaya dibuka untuk syarikat anda!');
+            Notification::make()
+                ->title('Akses Dokumen Percuma Dibuka')
+                ->body('Dokumen tender percuma telah berjaya dibuka untuk syarikat anda. Sila lengkapkan borang bidaan.')
+                ->success()
+                ->send();
+
+            return redirect()->route('filament.vendor.resources.bids.create', ['tender_id' => $tender->id])
+                ->with('success', 'Dokumen tender percuma telah berjaya dibuka untuk syarikat anda!');
         }
 
         // Check existing paid purchase
@@ -72,7 +80,14 @@ class AffanPayController extends Controller
             ->first();
 
         if ($existing) {
-            return redirect('/vendor')->with('info', 'Syarikat anda telah pun memiliki dokumen tender ini.');
+            Notification::make()
+                ->title('Dokumen Telah Dimiliki')
+                ->body('Syarikat anda telah pun memiliki dokumen tender ini. Anda boleh teruskan pengisian bidaan.')
+                ->info()
+                ->send();
+
+            return redirect()->route('filament.vendor.resources.bids.create', ['tender_id' => $tender->id])
+                ->with('info', 'Syarikat anda telah pun memiliki dokumen tender ini.');
         }
 
         // Find or create pending purchase
@@ -103,7 +118,21 @@ class AffanPayController extends Controller
      */
     public function simulate(string $reference)
     {
+        if (! app()->environment('local', 'testing') && ! config('affanpay.simulation_mode', false)) {
+            abort(403, 'Simulasi pembayaran AffanPay tidak dibenarkan dalam persekitaran ini.');
+        }
+
         $purchase = TenderPurchase::with(['vendor', 'tender'])->where('purchase_reference', $reference)->firstOrFail();
+
+        $user = Auth::user();
+        if ($user && ! $user->isAdmin() && ! $user->isUrusSetia()) {
+            if (! $user->vendor || $user->vendor->id !== $purchase->vendor_id) {
+                abort(403, 'Akses dinafikan.');
+            }
+        } elseif (! $user && ! app()->environment('testing')) {
+            return redirect('/vendor/login')->with('warning', 'Sila log masuk untuk meneruskan.');
+        }
+
         $setting = OrganizationSetting::current();
 
         return view('affanpay.simulate', compact('purchase', 'setting'));
@@ -114,7 +143,21 @@ class AffanPayController extends Controller
      */
     public function processSimulation(Request $request, string $reference)
     {
+        if (! app()->environment('local', 'testing') && ! config('affanpay.simulation_mode', false)) {
+            abort(403, 'Simulasi pembayaran AffanPay tidak dibenarkan dalam persekitaran ini.');
+        }
+
         $purchase = TenderPurchase::where('purchase_reference', $reference)->firstOrFail();
+
+        $user = Auth::user();
+        if ($user && ! $user->isAdmin() && ! $user->isUrusSetia()) {
+            if (! $user->vendor || $user->vendor->id !== $purchase->vendor_id) {
+                abort(403, 'Akses dinafikan.');
+            }
+        } elseif (! $user && ! app()->environment('testing')) {
+            return redirect('/vendor/login')->with('warning', 'Sila log masuk untuk meneruskan.');
+        }
+
         $action = $request->input('action', 'success');
 
         if ($action === 'success') {
@@ -127,7 +170,7 @@ class AffanPayController extends Controller
                 'timestamp' => now()->toIso8601String(),
             ];
 
-            $this->affanPayService->processWebhook($payload);
+            $this->affanPayService->processWebhook($payload, config('affanpay.webhook_secret'));
 
             return redirect()->route('affanpay.return', ['reference' => $purchase->purchase_reference])
                 ->with('success', 'Simulasi bayaran AffanPay berjaya diselesaikan!');
@@ -151,11 +194,26 @@ class AffanPayController extends Controller
             $this->affanPayService->verifyPaymentStatus($purchase);
         }
 
+        if ($purchase->isPaid()) {
+            Notification::make()
+                ->title('Pembayaran Berjaya')
+                ->body("Pembayaran RM {$purchase->amount} bagi tender [{$purchase->tender->reference_no}] berjaya! Sila teruskan penyerahan bidaan.")
+                ->success()
+                ->send();
+
+            return redirect()->route('filament.vendor.resources.bids.create', ['tender_id' => $purchase->tender_id])
+                ->with('success', "Pembayaran RM {$purchase->amount} bagi tender [{$purchase->tender->reference_no}] berjaya! Dokumen spesifikasi kini sedia dimuat turun.");
+        }
+
+        Notification::make()
+            ->title('Status Pembayaran Belum Disahkan')
+            ->body('Status pembayaran masih belum disahkan. Sila semak semula dalam beberapa minit.')
+            ->warning()
+            ->send();
+
         return redirect('/vendor')->with(
-            $purchase->isPaid() ? 'success' : 'warning',
-            $purchase->isPaid()
-                ? "Pembayaran RM {$purchase->amount} bagi tender [{$purchase->tender->reference_no}] berjaya! Dokumen spesifikasi kini sedia dimuat turun."
-                : 'Status pembayaran masih belum disahkan. Sila semak semula dalam beberapa minit.'
+            'warning',
+            'Status pembayaran masih belum disahkan. Sila semak semula dalam beberapa minit.'
         );
     }
 

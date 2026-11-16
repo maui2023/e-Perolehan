@@ -20,6 +20,10 @@ class TenderReportController extends Controller
             abort(403);
         }
 
+        if (! $tender->isBoxOpened()) {
+            abort(403, 'Peti tender belum dibuka secara rasmi oleh dua saksi.');
+        }
+
         if (empty($tender->opening_slip_pdf_path) || ! Storage::disk('private')->exists($tender->opening_slip_pdf_path)) {
             $this->pdfService->generateTenderOpeningSlipPdf($tender);
         }
@@ -39,6 +43,10 @@ class TenderReportController extends Controller
             abort(403);
         }
 
+        if (! $tender->isBoxOpened()) {
+            abort(403, 'Peti tender belum dibuka.');
+        }
+
         if (empty($tender->evaluation_report_pdf_path) || ! Storage::disk('private')->exists($tender->evaluation_report_pdf_path)) {
             $this->pdfService->generateEvaluationReportPdf($tender);
         }
@@ -56,6 +64,10 @@ class TenderReportController extends Controller
         $user = Auth::user();
         if (! $user) {
             abort(403);
+        }
+
+        if (! $tender->isAwarded() || ! $tender->awardedBid) {
+            abort(404, 'Surat Setuju Terima belum dikeluarkan bagi tender ini.');
         }
 
         $isAwardedVendor = $user->vendor && $tender->awardedBid && $tender->awardedBid->vendor_id === $user->vendor->id;
